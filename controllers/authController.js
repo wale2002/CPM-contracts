@@ -6,14 +6,57 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const validTimezones = require("moment-timezone").tz.names();
 
-const getAuditLogs = async (req, res) => {
-  // console.log("getAuditLogs: Request received", { user: req.user });
+// const getAuditLogs = async (req, res) => {
+//   // console.log("getAuditLogs: Request received", { user: req.user });
 
+//   try {
+//     // Allow all authenticated users to view audit logs
+//     const user = await User.findById(req.user.id);
+//     if (!user) {
+//       // console.log("getAuditLogs: User not found", { userId: req.user.id });
+//       return res.status(404).json({
+//         status: "error",
+//         statusCode: 404,
+//         message: "User not found",
+//         data: { user: null, auditLogs: null },
+//       });
+//     }
+
+//     const auditLogs = await AuditLog.find()
+//       .sort({ createdAt: -1 })
+//       .populate("user", "fullName email")
+//       .populate("resourceId"); // Populate resourceId if needed
+
+//     console.log("getAuditLogs: Audit logs retrieved", {
+//       count: auditLogs.length,
+//     });
+
+//     return res.status(200).json({
+//       status: "success",
+//       statusCode: 200,
+//       message: auditLogs.length
+//         ? "Audit logs retrieved successfully"
+//         : "No audit logs found",
+//       data: {
+//         user: null,
+//         auditLogs,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("getAuditLogs: Error", error);
+//     return res.status(500).json({
+//       status: "error",
+//       statusCode: 500,
+//       message: "Server error during audit log retrieval",
+//       data: { user: null, auditLogs: null },
+//     });
+//   }
+// };
+const getAuditLogs = async (req, res) => {
   try {
     // Allow all authenticated users to view audit logs
     const user = await User.findById(req.user.id);
     if (!user) {
-      // console.log("getAuditLogs: User not found", { userId: req.user.id });
       return res.status(404).json({
         status: "error",
         statusCode: 404,
@@ -22,12 +65,35 @@ const getAuditLogs = async (req, res) => {
       });
     }
 
-    const auditLogs = await AuditLog.find()
+    // Pagination params with defaults
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20; // Default to 20 logs per page
+    const skip = (page - 1) * limit;
+
+    // Optional filters (e.g., date range)
+    const { startDate, endDate } = req.query;
+    let query = {};
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    // Get total count for pagination
+    const total = await AuditLog.countDocuments(query);
+
+    // Fetch paginated audit logs
+    const auditLogs = await AuditLog.find(query)
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate("user", "fullName email")
       .populate("resourceId"); // Populate resourceId if needed
 
     console.log("getAuditLogs: Audit logs retrieved", {
+      page,
+      limit,
+      total,
       count: auditLogs.length,
     });
 
@@ -40,6 +106,14 @@ const getAuditLogs = async (req, res) => {
       data: {
         user: null,
         auditLogs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page < Math.ceil(total / limit),
+          hasPrev: page > 1,
+        },
       },
     });
   } catch (error) {
@@ -199,12 +273,10 @@ const login = async (req, res) => {
     });
   }
 };
-
 const getMe = async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
-      // console.log("auth/me: No token provided");
       return res.status(401).json({
         status: "error",
         statusCode: 401,
@@ -214,11 +286,10 @@ const getMe = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // console.log("auth/me: Token decoded", { userId: decoded.id });
 
-    const user = await User.findById(decoded.id).lean();
+    // FIX: Add .populate('role') to fetch full role object
+    const user = await User.findById(decoded.id).populate("role").lean();
     if (!user) {
-      // console.log("auth/me: User not found", { userId: decoded.id });
       return res.status(404).json({
         status: "error",
         statusCode: 404,
@@ -227,7 +298,12 @@ const getMe = async (req, res) => {
       });
     }
 
-    if (!user.organization && user.role !== "admin") {
+    if (
+      !user.organization &&
+      user.role?.name !== "admin" &&
+      user.role?.name !== "superAdmin"
+    ) {
+      // Use populated name
       console.log("auth/me: User missing organization", { userId: user._id });
       return res.status(400).json({
         status: "error",
@@ -240,7 +316,9 @@ const getMe = async (req, res) => {
     console.log("auth/me: User fetched", {
       userId: user._id,
       organization: user.organization,
+      roleName: user.role?.name, // Debug: Log populated name
     });
+
     return res.status(200).json({
       status: "success",
       statusCode: 200,
@@ -248,11 +326,11 @@ const getMe = async (req, res) => {
       data: {
         user: {
           _id: user._id,
-          fullName: user.fullName || "", // Include if exists, default to empty string
-          Department: user.Department || "", // Include if exists
+          fullName: user.fullName || "",
+          Department: user.Department || "",
           email: user.email,
-          role: user.role, // Populated role object
-          phoneNumber: user.phoneNumber || "", // Include if exists
+          role: user.role, // Now populated object { _id, name, ... }
+          phoneNumber: user.phoneNumber || "",
           status: user.status || "Active",
           firstName: user.firstName || "",
           lastName: user.lastName || "",
@@ -277,6 +355,84 @@ const getMe = async (req, res) => {
     });
   }
 };
+
+// const getMe = async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(" ")[1];
+//     if (!token) {
+//       // console.log("auth/me: No token provided");
+//       return res.status(401).json({
+//         status: "error",
+//         statusCode: 401,
+//         message: "No token provided",
+//         data: { user: null },
+//       });
+//     }
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     // console.log("auth/me: Token decoded", { userId: decoded.id });
+
+//     const user = await User.findById(decoded.id).lean();
+//     if (!user) {
+//       // console.log("auth/me: User not found", { userId: decoded.id });
+//       return res.status(404).json({
+//         status: "error",
+//         statusCode: 404,
+//         message: "User not found",
+//         data: { user: null },
+//       });
+//     }
+
+//     if (!user.organization && user.role !== "admin") {
+//       console.log("auth/me: User missing organization", { userId: user._id });
+//       return res.status(400).json({
+//         status: "error",
+//         statusCode: 400,
+//         message: "User has no organization assigned. Please contact support.",
+//         data: { user: null },
+//       });
+//     }
+
+//     console.log("auth/me: User fetched", {
+//       userId: user._id,
+//       organization: user.organization,
+//     });
+//     return res.status(200).json({
+//       status: "success",
+//       statusCode: 200,
+//       message: "User details retrieved successfully",
+//       data: {
+//         user: {
+//           _id: user._id,
+//           fullName: user.fullName || "", // Include if exists, default to empty string
+//           Department: user.Department || "", // Include if exists
+//           email: user.email,
+//           role: user.role, // Populated role object
+//           phoneNumber: user.phoneNumber || "", // Include if exists
+//           status: user.status || "Active",
+//           firstName: user.firstName || "",
+//           lastName: user.lastName || "",
+//           profilePicture: user.profilePicture || "",
+//           organization: user.organization || null,
+//           jobTitle: user.jobTitle || "",
+//           location: user.location || "",
+//           timezone: user.timezone || "",
+//           language: user.language || "",
+//           dateFormat: user.dateFormat || "",
+//           createdAt: user.createdAt,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("auth/me: Error", { message: error.message });
+//     return res.status(401).json({
+//       status: "error",
+//       statusCode: 401,
+//       message: "Invalid or expired token",
+//       data: { user: null },
+//     });
+//   }
+// };
 
 const requestResetPassword = async (req, res) => {
   const { email } = req.body;

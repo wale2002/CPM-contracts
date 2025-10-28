@@ -20,6 +20,7 @@ const allowedOrigins = [
   "http://localhost:2213",
   "https://msg-app-5mwq.vercel.app",
   "http://localhost:5173",
+  "http://localhost:5174",
 ];
 
 app.use(
