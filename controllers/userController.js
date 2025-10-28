@@ -1481,6 +1481,8 @@ const resetUserPassword = async (req, res) => {
 //     });
 //   }
 // };
+const fs = require('fs'); // Add this import at the top of userController.js (after other requires)
+
 const updateUser = async (req, res) => {
   const { id } = req.params; // For admin updates (/users/:id)
   const isSelfUpdate = req.path.endsWith("/profile"); // Detect self-update route
@@ -1609,26 +1611,34 @@ const updateUser = async (req, res) => {
     // Track changes for audit logging
     const changes = {};
 
-    // Update fields with validation (same as authController's version)
-    if (fullName?.trim()) {
-      changes.fullName = { old: user.fullName, new: fullName.trim() };
-      user.fullName = fullName.trim();
+    // Helper function to safely trim strings (reusable)
+    const safeTrim = (value) => (typeof value === 'string' ? value.trim() : null);
+
+    // Update fields with validation
+    if (safeTrim(fullName)) {
+      const trimmed = safeTrim(fullName);
+      changes.fullName = { old: user.fullName, new: trimmed };
+      user.fullName = trimmed;
     }
-    if (firstName?.trim()) {
-      changes.firstName = { old: user.firstName, new: firstName.trim() };
-      user.firstName = firstName.trim();
+    if (safeTrim(firstName)) {
+      const trimmed = safeTrim(firstName);
+      changes.firstName = { old: user.firstName, new: trimmed };
+      user.firstName = trimmed;
     }
-    if (lastName?.trim()) {
-      changes.lastName = { old: user.lastName, new: lastName.trim() };
-      user.lastName = lastName.trim();
+    if (safeTrim(lastName)) {
+      const trimmed = safeTrim(lastName);
+      changes.lastName = { old: user.lastName, new: trimmed };
+      user.lastName = trimmed;
     }
-    if (Department?.trim()) {
-      changes.Department = { old: user.Department, new: Department.trim() };
-      user.Department = Department.trim();
+    if (safeTrim(Department)) {
+      const trimmed = safeTrim(Department);
+      changes.Department = { old: user.Department, new: trimmed };
+      user.Department = trimmed;
     }
-    if (phoneNumber?.trim()) {
+    if (safeTrim(phoneNumber)) {
+      const trimmed = safeTrim(phoneNumber);
       const phoneRegex = /^\+?[\d\s-]{10,}$/;
-      if (!phoneRegex.test(phoneNumber.trim())) {
+      if (!phoneRegex.test(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1636,13 +1646,13 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      changes.phoneNumber = { old: user.phoneNumber, new: phoneNumber.trim() };
-      user.phoneNumber = phoneNumber.trim();
+      changes.phoneNumber = { old: user.phoneNumber, new: trimmed };
+      user.phoneNumber = trimmed;
     }
 
     // Updated profile picture handling: Support both URL (from body) and file upload (from multer via req.file)
     let newProfilePicture = null;
-    if (req.file) {
+    if (req.file && req.file.filename) {
       // File uploaded from local device - use the multer-provided path (e.g., '/uploads/filename.jpg')
       // For cloud storage (e.g., S3), replace with the generated URL here
       newProfilePicture = `/uploads/${req.file.filename}`; // Adjust based on your multer config (e.g., req.file.path)
@@ -1658,10 +1668,11 @@ const updateUser = async (req, res) => {
           );
         }
       }
-    } else if (profilePicture?.trim()) {
+    } else if (typeof profilePicture === 'string' && safeTrim(profilePicture)) {
       // URL provided in body
+      const trimmed = safeTrim(profilePicture);
       const urlRegex = /^https?:\/\/[^\s/$.?#].[^\s]*$/;
-      if (!urlRegex.test(profilePicture.trim())) {
+      if (!urlRegex.test(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1669,7 +1680,7 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      newProfilePicture = profilePicture.trim();
+      newProfilePicture = trimmed;
     }
 
     if (newProfilePicture && newProfilePicture !== user.profilePicture) {
@@ -1680,16 +1691,19 @@ const updateUser = async (req, res) => {
       user.profilePicture = newProfilePicture;
     }
 
-    if (jobTitle?.trim()) {
-      changes.jobTitle = { old: user.jobTitle, new: jobTitle.trim() };
-      user.jobTitle = jobTitle.trim();
+    if (safeTrim(jobTitle)) {
+      const trimmed = safeTrim(jobTitle);
+      changes.jobTitle = { old: user.jobTitle, new: trimmed };
+      user.jobTitle = trimmed;
     }
-    if (location?.trim()) {
-      changes.location = { old: user.location, new: location.trim() };
-      user.location = location.trim();
+    if (safeTrim(location)) {
+      const trimmed = safeTrim(location);
+      changes.location = { old: user.location, new: trimmed };
+      user.location = trimmed;
     }
-    if (timezone?.trim()) {
-      if (!validTimezones.includes(timezone.trim())) {
+    if (safeTrim(timezone)) {
+      const trimmed = safeTrim(timezone);
+      if (!validTimezones.includes(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1697,12 +1711,13 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      changes.timezone = { old: user.timezone, new: timezone.trim() };
-      user.timezone = timezone.trim();
+      changes.timezone = { old: user.timezone, new: trimmed };
+      user.timezone = trimmed;
     }
-    if (language?.trim()) {
+    if (safeTrim(language)) {
+      const trimmed = safeTrim(language);
       const validLanguages = ["en", "es", "fr", "de", "it"];
-      if (!validLanguages.includes(language.trim())) {
+      if (!validLanguages.includes(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1710,12 +1725,13 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      changes.language = { old: user.language, new: language.trim() };
-      user.language = language.trim();
+      changes.language = { old: user.language, new: trimmed };
+      user.language = trimmed;
     }
-    if (dateFormat?.trim()) {
+    if (safeTrim(dateFormat)) {
+      const trimmed = safeTrim(dateFormat);
       const validDateFormats = ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"];
-      if (!validDateFormats.includes(dateFormat.trim())) {
+      if (!validDateFormats.includes(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1723,12 +1739,13 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      changes.dateFormat = { old: user.dateFormat, new: dateFormat.trim() };
-      user.dateFormat = dateFormat.trim();
+      changes.dateFormat = { old: user.dateFormat, new: trimmed };
+      user.dateFormat = trimmed;
     }
-    if (email?.trim()) {
+    if (safeTrim(email)) {
+      const trimmed = safeTrim(email);
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
+      if (!emailRegex.test(trimmed)) {
         return res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -1736,7 +1753,7 @@ const updateUser = async (req, res) => {
           data: { user: null },
         });
       }
-      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedEmail = trimmed.toLowerCase();
       if (normalizedEmail !== user.email) {
         const existingUser = await User.findOne({ email: normalizedEmail });
         if (
