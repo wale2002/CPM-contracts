@@ -56,7 +56,6 @@ const createSuperAdmin = async () => {
         // Add other required fields for Organization schema if necessary
       });
       await organization.save();
-      console.log("Admin Organization created");
     }
 
     // Check if superAdmin user already exists

@@ -1481,7 +1481,7 @@ const resetUserPassword = async (req, res) => {
 //     });
 //   }
 // };
-const fs = require('fs'); // Add this import at the top of userController.js (after other requires)
+const fs = require("fs"); // Add this import at the top of userController.js (after other requires)
 
 const updateUser = async (req, res) => {
   const { id } = req.params; // For admin updates (/users/:id)
@@ -1612,7 +1612,8 @@ const updateUser = async (req, res) => {
     const changes = {};
 
     // Helper function to safely trim strings (reusable)
-    const safeTrim = (value) => (typeof value === 'string' ? value.trim() : null);
+    const safeTrim = (value) =>
+      typeof value === "string" ? value.trim() : null;
 
     // Update fields with validation
     if (safeTrim(fullName)) {
@@ -1668,7 +1669,7 @@ const updateUser = async (req, res) => {
           );
         }
       }
-    } else if (typeof profilePicture === 'string' && safeTrim(profilePicture)) {
+    } else if (typeof profilePicture === "string" && safeTrim(profilePicture)) {
       // URL provided in body
       const trimmed = safeTrim(profilePicture);
       const urlRegex = /^https?:\/\/[^\s/$.?#].[^\s]*$/;
@@ -1882,6 +1883,7 @@ const updateUser = async (req, res) => {
     });
   }
 };
+
 const deactivateUser = async (req, res) => {
   const { id } = req.params;
   console.log("deactivateUser: Request received", {
