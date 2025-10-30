@@ -1712,6 +1712,122 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// const getDocuments = async (req, res) => {
+//   const { orgId } = req.params;
+//   console.log("getDocuments: Request received", { orgId, user: req.user });
+
+//   try {
+//     // Skip re-fetch if middleware populates req.user fully; otherwise, fetch minimally
+//     const user = await User.findById(req.user.id)
+//       .select("organization")
+//       .populate("role"); // Only select needed fields
+
+//     if (!user) {
+//       console.log("getDocuments: User not found", { userId: req.user.id });
+//       return res.status(404).json({
+//         status: "error",
+//         statusCode: 404,
+//         message: "User not found",
+//         data: { user: null, documents: null },
+//       });
+//     }
+
+//     const organization = await Organization.findById(orgId);
+//     if (!organization) {
+//       console.log("getDocuments: Organization not found", { orgId });
+//       return res.status(404).json({
+//         status: "error",
+//         statusCode: 404,
+//         message: "Organization not found",
+//         data: { user: null, documents: null },
+//       });
+//     }
+
+//     const { page = 1, limit = 10 } = req.query;
+//     const pageNum = parseInt(page, 10);
+//     const limitNum = parseInt(limit, 10);
+
+//     if (isNaN(pageNum) || pageNum < 1 || isNaN(limitNum) || limitNum < 1) {
+//       return res.status(400).json({
+//         status: "error",
+//         statusCode: 400,
+//         message: "Invalid page or limit parameters",
+//         data: { user: null, documents: null },
+//       });
+//     }
+
+//     const query = { organization: orgId };
+
+//     const documents = await Document.find(query)
+//       .select(
+//         "name documentType createdAt isApproved approvedBy startDate expiryDate fileUrl uploadedBy"
+//       )
+//       .populate("uploadedBy", "fullName email")
+//       .populate("approvedBy", "fullName email")
+//       .sort({ createdAt: -1 })
+//       .skip((pageNum - 1) * limitNum)
+//       .limit(limitNum);
+
+//     const total = await Document.countDocuments(query);
+
+//     // Function to get file size in MB from URL
+//     const getFileSizeMB = (url) => {
+//       return new Promise((resolve) => {
+//         const req = https.request(url, { method: "HEAD" }, (res) => {
+//           const contentLength = res.headers["content-length"];
+//           const sizeInBytes = contentLength ? parseInt(contentLength, 10) : 0;
+//           resolve((sizeInBytes / (1024 * 1024)).toFixed(2));
+//         });
+//         req.on("error", () => resolve("0.00"));
+//         req.end();
+//       });
+//     };
+
+//     // Add sizeMB to each document
+//     const documentsWithSize = await Promise.all(
+//       documents.map(async (doc) => {
+//         const sizeMB = await getFileSizeMB(doc.fileUrl);
+//         return {
+//           ...doc.toObject(),
+//           sizeMB: parseFloat(sizeMB),
+//         };
+//       })
+//     );
+
+//     console.log("getDocuments: Found documents", {
+//       count: documentsWithSize.length,
+//       total,
+//       page: pageNum,
+//     });
+
+//     return res.status(200).json({
+//       status: "success",
+//       statusCode: 200,
+//       message: documentsWithSize.length
+//         ? "Documents retrieved successfully"
+//         : "No documents found",
+//       data: {
+//         user: null,
+//         documents: documentsWithSize,
+//         total,
+//         page: pageNum,
+//         totalPages: Math.ceil(total / limitNum),
+//       },
+//     });
+//   } catch (error) {
+//     console.error("getDocuments: Error", error);
+//     return res.status(500).json({
+//       status: "error",
+//       statusCode: 500,
+//       message: "Server error during document retrieval",
+//       data: { user: null, documents: null },
+//     });
+//   }
+// };
+
+// const getDocuments = async (req, res) => {
+//   const { orgId } = req.params;
+//   console.log("getDocuments: Request received", { orgId, user: req.user });
 const getDocuments = async (req, res) => {
   const { orgId } = req.params;
   console.log("getDocuments: Request received", { orgId, user: req.user });
@@ -1760,7 +1876,7 @@ const getDocuments = async (req, res) => {
 
     const documents = await Document.find(query)
       .select(
-        "name documentType createdAt isApproved approvedBy startDate expiryDate fileUrl uploadedBy"
+        "name documentType createdAt isApproved approvedBy startDate expiryDate fileUrl uploadedBy negotiatedAmount"
       )
       .populate("uploadedBy", "fullName email")
       .populate("approvedBy", "fullName email")
@@ -1824,11 +1940,6 @@ const getDocuments = async (req, res) => {
     });
   }
 };
-
-// const getDocuments = async (req, res) => {
-//   const { orgId } = req.params;
-//   console.log("getDocuments: Request received", { orgId, user: req.user });
-
 //   try {
 //     // Skip re-fetch if middleware populates req.user fully; otherwise, fetch minimally
 //     const user = await User.findById(req.user.id)
@@ -1937,9 +2048,284 @@ const getDocuments = async (req, res) => {
 //   }
 // };
 
+// const uploadDocument = async (req, res) => {
+//   const { orgId } = req.params;
+//   const { documentName, documentType, startDate, expiryDate } = req.body;
+//   const file = req.file;
+
+//   // console.log("uploadDocument: Full req.body", req.body);
+//   // console.log("uploadDocument: Full req.file", req.file);
+//   // console.log("uploadDocument: Request received", {
+//   //   orgId,
+//   //   documentName,
+//   //   documentType,
+//   //   startDate,
+//   //   expiryDate,
+//   //   file: file?.originalname,
+//   //   user: req.user,
+//   // });
+
+//   try {
+//     const user = await User.findById(req.user.id).populate("role");
+//     if (!user || !user.role.permissions.DocumentManagement.uploadDocuments) {
+//       console.log("uploadDocument: Unauthorized", { userId: req.user.id });
+//       return res.status(403).json({
+//         status: "error",
+//         statusCode: 403,
+//         message: "Unauthorized to upload documents",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     if (!file) {
+//       console.log("uploadDocument: No file uploaded");
+//       return res.status(400).json({
+//         status: "error",
+//         statusCode: 400,
+//         message: "PDF file is required",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     if (!fs.existsSync(file.path)) {
+//       console.log("uploadDocument: Temporary file not found", {
+//         path: file.path,
+//       });
+//       return res.status(400).json({
+//         status: "error",
+//         statusCode: 400,
+//         message: "Temporary file not found",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     const organization = await Organization.findById(orgId);
+//     if (!organization) {
+//       console.log("uploadDocument: Organization not found", { orgId });
+//       return res.status(404).json({
+//         status: "error",
+//         statusCode: 404,
+//         message: "Organization not found",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     if (
+//       user.role.name !== "superAdmin" &&
+//       user.organization.toString() !== orgId
+//     ) {
+//       console.log("uploadDocument: User not in organization", {
+//         userId: req.user.id,
+//         orgId,
+//       });
+//       return res.status(403).json({
+//         status: "error",
+//         statusCode: 403,
+//         message: "Unauthorized to upload documents to this organization",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     if (!documentName?.trim()) {
+//       console.log("uploadDocument: Missing or empty document name", {
+//         documentName,
+//       });
+//       return res.status(400).json({
+//         status: "error",
+//         statusCode: 400,
+//         message: "Document name is required",
+//         data: { user: null, document: null },
+//       });
+//     }
+
+//     let parsedStartDate, parsedExpiryDate;
+//     if (startDate) {
+//       parsedStartDate = new Date(startDate);
+//       if (isNaN(parsedStartDate)) {
+//         console.log("uploadDocument: Invalid start date", { startDate });
+//         return res.status(400).json({
+//           status: "error",
+//           statusCode: 400,
+//           message: "Invalid start date format",
+//           data: { user: null, document: null },
+//         });
+//       }
+//     }
+//     if (expiryDate) {
+//       parsedExpiryDate = new Date(expiryDate);
+//       if (isNaN(parsedExpiryDate)) {
+//         console.log("uploadDocument: Invalid expiry date", { expiryDate });
+//         return res.status(400).json({
+//           status: "error",
+//           statusCode: 400,
+//           message: "Invalid expiry date format",
+//           data: { user: null, document: null },
+//         });
+//       }
+//       if (startDate && parsedExpiryDate <= parsedStartDate) {
+//         console.log("uploadDocument: Expiry date must be after start date", {
+//           startDate,
+//           expiryDate,
+//         });
+//         return res.status(400).json({
+//           status: "error",
+//           statusCode: 400,
+//           message: "Expiry date must be after start date",
+//           data: { user: null, document: null },
+//         });
+//       }
+//     }
+
+//     const uploadResult = await cloudinary.uploader.upload(file.path, {
+//       folder: orgId,
+//       public_id: documentName,
+//       resource_type: "raw",
+//       upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
+//     });
+
+//     const document = new Document({
+//       name: documentName,
+//       fileUrl: uploadResult.secure_url,
+//       googleDriveFileId: uploadResult.public_id,
+//       organization: orgId,
+//       documentType: documentType || "Other",
+//       uploadedBy: req.user.id,
+//       isApproved: false,
+//       approvedBy: null,
+//       startDate: parsedStartDate || null,
+//       expiryDate: parsedExpiryDate || null,
+//     });
+
+//     await document.save();
+
+//     // console.log("uploadDocument: Document saved", {
+//     //   documentId: document._id,
+//     //   organization: document.organization,
+//     //   cloudinaryPublicId: uploadResult.public_id,
+//     // });
+
+//     const auditLog = new AuditLog({
+//       user: req.user.id,
+//       action: "document_upload",
+//       resource: "Document",
+//       resourceId: document._id,
+//       details: { documentName: document.name, organization: orgId },
+//     });
+//     await auditLog.save();
+//     console.log("uploadDocument: Audit log created", {
+//       auditLogId: auditLog._id,
+//     });
+
+//     const notification = new Notification({
+//       user: req.user.id,
+//       organization: orgId,
+//       type: "document_upload",
+//       message: `New document "${document.name}" uploaded by ${user.fullName}`,
+//       metadata: { documentId: document._id },
+//     });
+//     await notification.save();
+//     console.log("uploadDocument: Notification created", {
+//       notificationId: notification._id,
+//     });
+
+//     // try {
+//     //   const email = new Email(
+//     //     user,
+//     //     `https://your-app-url.com/documents/${orgId}`,
+//     //     null,
+//     //     {
+//     //       documentName: document.name,
+//     //       uploaderName: user.fullName,
+//     //       uploaderEmail: user.email,
+//     //       organizationName: organization.name,
+//     //       uploadTime: document.createdAt.toLocaleString(),
+//     //       documentsUrl: `https://your-app-url.com/documents/${orgId}`,
+//     //       startDate: document.startDate
+//     //         ? document.startDate.toLocaleDateString()
+//     //         : "N/A",
+//     //       expiryDate: document.expiryDate
+//     //         ? document.expiryDate.toLocaleDateString()
+//     //         : "N/A",
+//     //     }
+//     //   );
+//     //   await email.sendDocumentUpload();
+//     //   console.log("uploadDocument: Notification email sent", {
+//     //     to: user.email,
+//     //   });
+//     // } catch (emailError) {
+//     //   console.error(
+//     //     "uploadDocument: Failed to send notification email",
+//     //     emailError
+//     //   );
+//     // }
+
+//     try {
+//       fs.unlinkSync(file.path);
+//       console.log("uploadDocument: Temporary file deleted", {
+//         path: file.path,
+//       });
+//     } catch (cleanupError) {
+//       console.error(
+//         "uploadDocument: Failed to delete temporary file",
+//         cleanupError
+//       );
+//     }
+
+//     return res.status(201).json({
+//       status: "success",
+//       statusCode: 201,
+//       message: "Document uploaded successfully",
+//       data: {
+//         user: null,
+//         document: {
+//           _id: document._id,
+//           name: document.name,
+//           documentType: document.documentType,
+//           fileUrl: document.fileUrl,
+//           organization: document.organization,
+//           uploadedBy: document.uploadedBy,
+//           isApproved: document.isApproved,
+//           approvedBy: document.approvedBy,
+//           startDate: document.startDate,
+//           expiryDate: document.expiryDate,
+//           createdAt: document.createdAt,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("uploadDocument: Error", error);
+
+//     if (file && file.path && fs.existsSync(file.path)) {
+//       try {
+//         fs.unlinkSync(file.path);
+//         console.log("uploadDocument: Temporary file deleted on error", {
+//           path: file.path,
+//         });
+//       } catch (cleanupError) {
+//         console.error(
+//           "uploadDocument: Failed to delete temporary file on error",
+//           cleanupError
+//         );
+//       }
+//     }
+
+//     return res.status(500).json({
+//       status: "error",
+//       statusCode: 500,
+//       message: "Server error during document upload",
+//       data: { user: null, document: null },
+//     });
+//   }
+// };
 const uploadDocument = async (req, res) => {
   const { orgId } = req.params;
-  const { documentName, documentType, startDate, expiryDate } = req.body;
+  const {
+    documentName,
+    documentType,
+    startDate,
+    expiryDate,
+    negotiatedAmount,
+  } = req.body;
   const file = req.file;
 
   // console.log("uploadDocument: Full req.body", req.body);
@@ -2027,7 +2413,7 @@ const uploadDocument = async (req, res) => {
       });
     }
 
-    let parsedStartDate, parsedExpiryDate;
+    let parsedStartDate, parsedExpiryDate, parsedNegotiatedAmount;
     if (startDate) {
       parsedStartDate = new Date(startDate);
       if (isNaN(parsedStartDate)) {
@@ -2064,6 +2450,21 @@ const uploadDocument = async (req, res) => {
         });
       }
     }
+    // In uploadDocument, replace the existing negotiatedAmount parsing block with:
+if (negotiatedAmount) {
+  // Remove commas (thousands separators) and trim whitespace
+  let cleanAmount = negotiatedAmount.toString().replace(/,/g, '').trim();
+  parsedNegotiatedAmount = parseFloat(cleanAmount);
+  if (isNaN(parsedNegotiatedAmount) || parsedNegotiatedAmount < 0) {
+    console.log("uploadDocument: Invalid negotiated amount", { negotiatedAmount });
+    return res.status(400).json({
+      status: "error",
+      statusCode: 400,
+      message: "Invalid negotiated amount format (must be a positive number)",
+      data: { user: null, document: null },
+    });
+  }
+}
 
     const uploadResult = await cloudinary.uploader.upload(file.path, {
       folder: orgId,
@@ -2083,6 +2484,7 @@ const uploadDocument = async (req, res) => {
       approvedBy: null,
       startDate: parsedStartDate || null,
       expiryDate: parsedExpiryDate || null,
+      negotiatedAmount: parsedNegotiatedAmount || null,
     });
 
     await document.save();
@@ -2178,6 +2580,7 @@ const uploadDocument = async (req, res) => {
           startDate: document.startDate,
           expiryDate: document.expiryDate,
           createdAt: document.createdAt,
+          negotiatedAmount: document.negotiatedAmount,
         },
       },
     });

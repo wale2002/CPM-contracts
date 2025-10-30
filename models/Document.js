@@ -30,6 +30,8 @@ const documentSchema = new mongoose.Schema({
     ref: "User",
     default: null,
   },
+  negotiatedAmount: { type: Number, required: false }, // Optional field for negotiated amount in contract
+
   note: { type: String, required: false, default: "" }, // Note field added for when document is added to organization
   notificationPreferences: {
     contractExpiryDays: { type: Number, default: 30 }, // Notify X days before expiry
