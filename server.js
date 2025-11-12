@@ -22,6 +22,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://cmp-sage.vercel.app",
+  "https://cmp-fifthlab.vercel.app",
 ];
 
 app.use(
